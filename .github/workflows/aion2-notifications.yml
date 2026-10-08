@@ -31,6 +31,45 @@ jobs:
 
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
+      
+      
+      - name: Test Discord webhook
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          webhook = os.environ["DISCORD_WEBHOOK_URL"]
+
+          payload = {
+              "username": "AION 2 Notifications",
+              "allowed_mentions": {"parse": []},
+              "embeds": [{
+                  "title": "AION 2 — Test powiadomienia",
+                  "description": "Połączenie GitHub Actions → Discord Webhook działa poprawnie.",
+                  "color": 5763719,
+                  "fields": [
+                      {"name": "Region", "value": "Europa", "inline": True},
+                      {"name": "Serwer", "value": "Phernos", "inline": True},
+                      {"name": "Status", "value": "Test zakończony pomyślnie", "inline": False}
+                  ]
+              }]
+          }
+
+          request = urllib.request.Request(
+              webhook,
+              data=json.dumps(payload).encode("utf-8"),
+              headers={"Content-Type": "application/json"},
+              method="POST"
+          )
+
+          with urllib.request.urlopen(request, timeout=15) as response:
+              print(f"Discord HTTP status: {response.status}")
+          PY
 
       - name: Fetch and publish notifications
         env:
