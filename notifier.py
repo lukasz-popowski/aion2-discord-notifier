@@ -48,10 +48,35 @@ def fetch_json(url, data=None, headers=None):
 
 
 def strip_markup(text):
-    text = re.sub(r'\[/?(?:b|i|u|h\d|list|\*|quote)\]', '', text, flags=re.I)
-    text = re.sub(r'\[url(?:=[^]]+)?\](.*?)\[/url\]', r'\1', text, flags=re.I | re.S)
+    """Convert Steam HTML/BBCode into readable plain text."""
+    text = text or ""
+
+    # Convert structural HTML tags into line breaks.
+    text = re.sub(r'<\s*br\s*/?\s*>', '\n', text, flags=re.I)
+    text = re.sub(r'</?\s*(?:p|div|tr|li|h[1-6])\b[^>]*>', '\n', text, flags=re.I)
+    text = re.sub(r'<\s*(?:td|th)\b[^>]*>', '', text, flags=re.I)
+    text = re.sub(r'</\s*(?:td|th)\s*>', ' | ', text, flags=re.I)
+
+    # Preserve the visible label of URL links.
+    text = re.sub(r'\[url(?:=[^\]]+)?\](.*?)\[/url\]', r'\1', text, flags=re.I | re.S)
+
+    # Convert structural Steam BBCode.
+    text = re.sub(r'\[/?(?:p|tr|list|quote|h[1-6]|\*)[^\]]*\]', '\n', text, flags=re.I)
+    text = re.sub(r'\[(?:td|th)[^\]]*\]', '', text, flags=re.I)
+    text = re.sub(r'\[/(?:td|th)\]', ' | ', text, flags=re.I)
+
+    # Strip ordinary BBCode, including tags with attributes, and HTML.
+    text = re.sub(r'\[/?[a-z][a-z0-9_-]*(?:[ =][^\]]*)?\]', '', text, flags=re.I)
     text = re.sub(r'<[^>]*>', ' ', text)
-    return re.sub(r'\s+', ' ', html.unescape(text)).strip()
+    text = html.unescape(text).replace('\r\n', '\n').replace('\r', '\n')
+
+    # Normalize whitespace while preserving paragraph structure.
+    text = re.sub(r'[ \t]+', ' ', text)
+    text = re.sub(r' *\| *', ' | ', text)
+    text = re.sub(r'\n[ \t]*\n+', '\n\n', text)
+    # Drop a trailing column separator left by the last table cell.
+    text = re.sub(r' *\| *(?=\n|$)', '', text)
+    return text.strip()
 
 
 def categorize(title, body):
@@ -223,3 +248,4 @@ if __name__ == '__main__':
     except (urllib.error.URLError, RuntimeError, KeyError, ValueError) as exc:
         LOG.error('Notifier failed: %s', exc)
         sys.exit(1)
+
