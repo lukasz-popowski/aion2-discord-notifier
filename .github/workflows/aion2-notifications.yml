@@ -1,9 +1,13 @@
-
 name: AION 2 notifications
 
 on:
   workflow_dispatch:
-
+    inputs:
+      test_translation:
+        description: 'Send one translated TEST message to Discord (no Steam announcements)'
+        type: boolean
+        required: false
+        default: false
   schedule:
     - cron: '7,22,37,52 * * * *'
 
@@ -16,110 +20,45 @@ concurrency:
 
 jobs:
   notify:
-    name: AION 2 Discord Notifier
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
-
-      # Test webhook only when workflow is started manually
-      - name: Test Discord webhook
-        if: github.event_name == 'workflow_dispatch'
+      - name: Check required secrets
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GOOGLE_TRANSLATE_API_KEY: ${{ secrets.GOOGLE_TRANSLATE_API_KEY }}
         run: |
-          python - <<'PY'
-          import json
-          import os
-          import urllib.request
-          import urllib.error
-
-          webhook = os.environ.get("DISCORD_WEBHOOK_URL")
-
-          if not webhook:
-              raise RuntimeError("Missing DISCORD_WEBHOOK_URL secret")
-
-          payload = {
-              "username": "AION 2 Notifications",
-              "allowed_mentions": {"parse": []},
-              "embeds": [
-                  {
-                      "title": "AION 2 - Test powiadomienia",
-                      "description": (
-                          "Polaczenie GitHub Actions -> "
-                          "Discord Webhook dziala poprawnie."
-                      ),
-                      "color": 5763719,
-                      "fields": [
-                          {
-                              "name": "Region",
-                              "value": "Europa",
-                              "inline": True
-                          },
-                          {
-                              "name": "Serwer",
-                              "value": "Phernos",
-                              "inline": True
-                          },
-                          {
-                              "name": "Status",
-                              "value": "Webhook aktywny",
-                              "inline": False
-                          }
-                      ],
-                      "footer": {
-                          "text": "AION 2 Discord Notifier"
-                      }
-                  }
-              ]
-          }
-
-          request = urllib.request.Request(
-              webhook,
-              data=json.dumps(payload).encode("utf-8"),
-              headers={
-                  "Content-Type": "application/json",
-                  "User-Agent": "AION2-Discord-Notifier/1.0"
-              },
-              method="POST"
-          )
-
-          try:
-              with urllib.request.urlopen(request, timeout=15) as response:
-                  print(f"Discord HTTP status: {response.status}")
-                  print("Webhook test successful")
-          except urllib.error.HTTPError as error:
-              print(f"Discord HTTP error: {error.code}")
-              print("Webhook test failed")
-              raise
-
-          PY
-
+          test -n "$DISCORD_WEBHOOK_URL" || { echo 'Missing DISCORD_WEBHOOK_URL'; exit 1; }
+          test -n "$GOOGLE_TRANSLATE_API_KEY" || { echo 'Missing GOOGLE_TRANSLATE_API_KEY'; exit 1; }
+      - name: Test Polish translation and Discord delivery
+        if: github.event_name == 'workflow_dispatch' && inputs.test_translation == true
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          GOOGLE_TRANSLATE_API_KEY: ${{ secrets.GOOGLE_TRANSLATE_API_KEY }}
+        run: python notifier.py --test-notification
       - name: Fetch and publish notifications
+        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.test_translation != true)
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           GOOGLE_TRANSLATE_API_KEY: ${{ secrets.GOOGLE_TRANSLATE_API_KEY }}
         run: python notifier.py
-
       - name: Save notification state
+        if: success()
         run: |
           if ! git diff --quiet -- state.json; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
             git add state.json
-            git commit -m "chore: update AION 2 notification state"
+            git commit -m 'chore: update AION 2 notification state'
             git push
           else
-            echo "No notification state changes"
+            echo 'No notification state changes'
           fi
-
