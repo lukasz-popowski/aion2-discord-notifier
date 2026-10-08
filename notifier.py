@@ -28,14 +28,17 @@ CATEGORIES = {
     'code': (0x39aa77, 'Kod / nagroda', '🎁'),
 }
 KEYWORDS = {
-    'maintenance': ('maintenance', 'server downtime', 'server down', 'back online', 'servers online', 'extended downtime', 'emergency maintenance'),
-    'patch': ('patch notes', 'patchnote', 'update notes', 'balance update', 'hotfix', 'update details'),
-    'event': ('event', 'festival', 'celebration', 'contest', 'community challenge'),
-    'code': ('redeem code', 'coupon', 'gift code', 'promo code', 'redemption code', 'free gift'),
+    'maintenance': ('maintenance', 'downtime', 'server downtime', 'server down', 'back online', 'servers online', 'extended downtime', 'emergency maintenance', 'maintenance is over', 'server restart'),
+    'patch': ('patch notes', 'patchnote', 'update notes', 'balance update', 'hotfix', 'update details', 'weekly update'),
+    'event': ('event', 'festival', 'celebration', 'contest', 'community challenge', 'twitch drops', 'giveaway'),
+    'code': ('redeem code', 'coupon', 'gift code', 'promo code', 'redemption code', 'free gift', 'thank you gift'),
 }
-NON_EU = re.compile(r'\b(?:north america|south america|latin america|japan|taiwan|korea|na only|latam only|jp only)\b', re.I)
-EU = re.compile(r'\b(?:europe|european|eu region|eu servers?|phernos|all regions|all servers|all services|global|worldwide)\b', re.I)
-ONLY_OTHER = re.compile(r'\b(?:only|exclusive(?:ly)?|limited to)\b', re.I)
+# Matching is based on scope, not on incidental region names inside a long article.
+EU_SCOPE = re.compile(r'\b(?:europe|european|eu[ -]?(?:region|server|only)|phernos)\b', re.I)
+GLOBAL_SCOPE = re.compile(r'\b(?:all (?:regions|servers|services)|global(?:ly)?|worldwide|every (?:region|server))\b', re.I)
+OTHER_REGION = re.compile(r'\b(?:north america|south america|latin america|asia|asian|japan|taiwan|korea|na[ -]?(?:region|servers?|only)|latam|jp[ -]?only)\b', re.I)
+EXCLUSIVE_WORDS = re.compile(r'\b(?:only|exclusive(?:ly)?|limited to|restricted to)\b', re.I)
+SCOPE_HEADING = re.compile(r'^(?:\[?(?:notice|event)\]?\s*[:|–-]?\s*)?(?:(?:NA|LATAM|JP|ASIA|EU)[ -]?(?:only|servers?)|(?:north america|latin america|south america|asia|japan|korea|taiwan|europe)(?:[ -](?:only|servers?|region)))$', re.I)
 
 
 def fetch_json(url, data=None, headers=None):
@@ -62,14 +65,47 @@ def categorize(title, body):
 
 
 def relevant(title, body):
+    """Conservative policy for the official *global* AION 2 Steam feed.
+
+    Explicit other-region-only notices are excluded. Global maintenance, patch
+    and code announcements lacking any region label are included. Unscoped
+    events stay pending review because many promotions have local eligibility.
+    """
+    title = strip_markup(title)
+    body = strip_markup(body)
     combined = f'{title} {body}'
-    if 'phernos' in combined.lower():
+    category = categorize(title, body)
+    if not category:
+        return False
+
+    # A heading that excludes EU takes precedence over broad text in the body,
+    # e.g. "NA only" headline + a boilerplate link to global servers.
+    heading = re.sub(r'^\s*\[(?:notice|event)\]\s*', '', title, flags=re.I)
+    if (OTHER_REGION.search(heading) and not EU_SCOPE.search(heading)
+            and (EXCLUSIVE_WORDS.search(heading) or SCOPE_HEADING.fullmatch(heading))):
+        return False
+
+    # Region-first headlines normally identify dedicated maintenance / events.
+    if (re.match(r'^\s*(?:\[notice\]\s*)?(?:north america|south america|latin america|asia|japan|korea|taiwan|NA|LATAM|JP)\b', heading, re.I)
+            and not EU_SCOPE.search(heading) and not GLOBAL_SCOPE.search(heading)):
+        return False
+
+    # Catch e.g. "Available only to NA players" anywhere in short scope text.
+    scope_sentences = re.split(r'(?<=[.!?])\s+|\n+', combined[:1500])
+    for sentence in scope_sentences:
+        if OTHER_REGION.search(sentence) and EXCLUSIVE_WORDS.search(sentence) and not EU_SCOPE.search(sentence) and not GLOBAL_SCOPE.search(sentence):
+            return False
+
+    if EU_SCOPE.search(combined) or GLOBAL_SCOPE.search(combined):
         return True
-    if NON_EU.search(title) and not EU.search(title):
-        return False
-    if NON_EU.search(combined) and ONLY_OTHER.search(title) and not EU.search(combined):
-        return False
-    return bool(EU.search(combined))
+
+    # This Steam feed is the official global release feed: ordinary patch and
+    # server maintenance notices without region qualifiers generally apply to
+    # EU as well; similarly for redeem codes with no stated restriction.
+    if category in ('maintenance', 'patch', 'code'):
+        return True
+
+    return False
 
 
 def load_state():
