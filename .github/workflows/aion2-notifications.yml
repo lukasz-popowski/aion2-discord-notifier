@@ -63,8 +63,11 @@ jobs:
           request = urllib.request.Request(
               webhook,
               data=json.dumps(payload).encode("utf-8"),
-              headers={"Content-Type": "application/json"},
-              method="POST"
+              headers={
+  			  "Content-Type": "application/json",
+    			  "User-Agent": "AION2-Discord-Notifier/1.0"
+	      },
+	      method="POST"
           )
 
           with urllib.request.urlopen(request, timeout=15) as response:
