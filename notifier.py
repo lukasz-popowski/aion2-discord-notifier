@@ -13,6 +13,7 @@ import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+from zoneinfo import ZoneInfo
 
 APP_ID = 3393110
 STEAM_API = 'https://api.steampowered.com/ISteamNews/GetNewsForApp/v2/'
@@ -218,6 +219,117 @@ def record_maintenance_baseline(state, gid, title, body):
     return 'changed'
 
 
+
+# Only explicit EU-local times (CEST/CET) or a standalone UTC time are trusted.
+# American times in the same article must never override the EU schedule.
+MONTHS = {name.lower(): num for num, name in enumerate(
+    ('January', 'February', 'March', 'April', 'May', 'June', 'July',
+     'August', 'September', 'October', 'November', 'December'), 1)}
+MONTHS.update({name[:3].lower(): value for name, value in list(MONTHS.items())})
+DATE_TIME = re.compile(
+    r'\b(?P<month>January|February|March|April|May|June|July|August|September|October|November|December|'
+    r'Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+'
+    r'(?P<day>\d{1,2})(?:st|nd|rd|th)?\s*,?\s*(?P<year>20\d{2})'
+    r'\s*(?:at|,|\||:) ?\s*(?P<hour>\d{1,2}):(?P<minute>\d{2})\s*(?P<ampm>AM|PM)?\s*'
+    r'(?P<zone>CEST|CET|UTC)\b', re.I)
+DATE_TIME_ALT = re.compile(
+    r'\b(?P<day>\d{1,2})\s+'
+    r'(?P<month>January|February|March|April|May|June|July|August|September|October|November|December|'
+    r'Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+'
+    r'(?P<year>20\d{2})\s*(?:at|,|\||:) ?\s*'
+    r'(?P<hour>\d{1,2}):(?P<minute>\d{2})\s*(?P<ampm>AM|PM)?\s*'
+    r'(?P<zone>CEST|CET|UTC)\b', re.I)
+
+
+def parse_maintenance_start(title, body):
+    """Return a verified UTC start or None; never infer missing dates/times."""
+    if categorize(title, body) != 'maintenance' or not relevant(title, body):
+        return None
+    if re.search(r'\b(?:maintenance is over|maintenance completed|servers? (?:are )?back online)\b', title, re.I):
+        return None
+    combined = f'{title}\n{body}'
+    matches = list(DATE_TIME.finditer(combined)) + list(DATE_TIME_ALT.finditer(combined))
+    # Prefer an explicit EU date over UTC if both are present.
+    matches.sort(key=lambda m: (m.group('zone').upper() == 'UTC', m.start()))
+    for match in matches:
+        data = match.groupdict()
+        hour = int(data['hour'])
+        if data['ampm']:
+            if not 1 <= hour <= 12:
+                continue
+            hour = hour % 12 + (12 if data['ampm'].upper() == 'PM' else 0)
+        if hour > 23:
+            continue
+        month = MONTHS.get(data['month'].rstrip('.').lower())
+        try:
+            naive = dt.datetime(int(data['year']), month, int(data['day']), hour, int(data['minute']))
+        except (ValueError, TypeError):
+            continue
+        zone = data['zone'].upper()
+        if zone == 'UTC':
+            local = naive.replace(tzinfo=dt.timezone.utc)
+        else:
+            local = naive.replace(tzinfo=ZoneInfo('Europe/Warsaw'))
+            # Reject wrong CET/CEST labels and nonexistent local hours on DST change.
+            expected = 'CEST' if local.utcoffset() == dt.timedelta(hours=2) else 'CET'
+            if zone != expected or local.astimezone(dt.timezone.utc).astimezone(ZoneInfo('Europe/Warsaw')).replace(tzinfo=None) != naive:
+                continue
+        return int(local.astimezone(dt.timezone.utc).timestamp())
+    return None
+
+
+def register_maintenance_schedule(state, gid, title, body, link, now=None):
+    """Record a future schedule; rescheduling resets unsent reminders."""
+    now = int(now if now is not None else dt.datetime.now(dt.timezone.utc).timestamp())
+    start = parse_maintenance_start(title, body)
+    schedules = state.setdefault('maintenance_schedules', {})
+    if start is None or start <= now:
+        # Do not modify a previously announced schedule based on vague edits.
+        return False
+    previous = schedules.get(gid)
+    if previous and previous.get('start') == start:
+        return False
+    schedules[gid] = {'start': start, 'title': title[:180], 'url': link,
+                      'reminder_sent': False, 'start_sent': False}
+    return True
+
+
+def send_due_reminders(state, webhook, now=None, dry_run=False):
+    """Send each reminder once; actions may be delayed or skipped."""
+    now = int(now if now is not None else dt.datetime.now(dt.timezone.utc).timestamp())
+    changed = False
+    for gid, item in list(state.get('maintenance_schedules', {}).items()):
+        start = int(item['start'])
+        delta = start - now
+        if 0 < delta <= 1800 and not item.get('reminder_sent'):
+            description = (f'Przypomnienie: planowany maintenance EU za około {max(1, (delta + 59) // 60)} min.\n'
+                           f'Termin: <t:{start}:F> (<t:{start}:R>).\n'
+                           'Godzina wynika z oficjalnego harmonogramu, nie ze statusu serwera.')
+            post_discord(webhook, 'Przypomnienie o konserwacji — EU / Phernos',
+                         description, item.get('url', ''), 'maintenance', now, dry_run)
+            if not dry_run:
+                item['reminder_sent'] = True
+                save_state(state)
+                changed = True
+        if -2100 <= delta <= 0 and not item.get('start_sent'):
+            description = (f'Według oficjalnego harmonogramu konserwacja powinna się rozpocząć: <t:{start}:F>.\n'
+                           'To informacja o terminie, **nie potwierdzenie**, że Phernos jest offline.')
+            post_discord(webhook, 'Planowane rozpoczęcie konserwacji — EU / Phernos',
+                         description, item.get('url', ''), 'maintenance', now, dry_run)
+            if not dry_run:
+                item['start_sent'] = True
+                save_state(state)
+                changed = True
+        if delta < -86400:
+            # Retain for one day only; no stale announcements after outages.
+            if not dry_run:
+                del state['maintenance_schedules'][gid]
+                changed = True
+    if changed and not dry_run:
+        save_state(state)
+    return changed
+
+
 def run(args):
     state = load_state()
     api_key = os.environ.get('GOOGLE_TRANSLATE_API_KEY', '')
@@ -249,6 +361,7 @@ def run(args):
         return
     sent = 0
     revisions = 0
+    schedule_changed = False
     for a in sorted(articles, key=lambda x: x.get('date', 0)):
         gid = str(a.get('gid', ''))
         if not gid:
@@ -257,6 +370,8 @@ def run(args):
         body = strip_markup(a.get('contents', ''))
         category = categorize(title, body)
         eligible_maintenance = category == 'maintenance' and relevant(title, body)
+        if eligible_maintenance and not args.dry_run:
+            schedule_changed |= register_maintenance_schedule(state, gid, title, body, a.get('url', ''))
         revision_state = None
         if eligible_maintenance:
             revision_state = record_maintenance_baseline(state, gid, title, body)
@@ -298,6 +413,10 @@ def run(args):
         if stale:
             for gid in stale:
                 del versions[gid]
+            save_state(state)
+    if not args.dry_run:
+        send_due_reminders(state, webhook)
+        if schedule_changed:
             save_state(state)
     LOG.info('Maintenance revision notifications: %d', revisions)
 
