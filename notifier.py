@@ -3,6 +3,7 @@
 import argparse
 import datetime as dt
 import html
+import hashlib
 import json
 import logging
 import os
@@ -186,6 +187,37 @@ def post_discord(url, title, description, link, category, timestamp, dry_run=Fal
             raise RuntimeError(f'Discord returned HTTP {res.status}')
 
 
+def maintenance_fingerprint(title, body):
+    """Content fingerprint independent of BBCode formatting and whitespace."""
+    normalized = re.sub(r'\s+', ' ', f'{title} {body}').strip().casefold()
+    return hashlib.sha256(normalized.encode('utf-8')).hexdigest()
+
+
+def maintenance_status(title, body):
+    """Identify ONLY explicit status statements, never infer server status from time."""
+    headline = title.lower()
+    content = f'{title} {body}'.lower()
+    if re.search(r'\b(?:maintenance (?:completed|finished|ended|is over)|servers? (?:are )?(?:back online|restored)|service (?:restored|resumed))\b', headline):
+        return 'Zakończenie potwierdzone w ogłoszeniu'
+    if re.search(r'\b(?:extended maintenance|maintenance extended|downtime extended|maintenance extension)\b', content):
+        return 'Przedłużenie opisane w ogłoszeniu'
+    if re.search(r'\b(?:maintenance (?:has )?(?:begun|started)|maintenance in progress)\b', headline):
+        return 'Rozpoczęcie potwierdzone w ogłoszeniu'
+    return 'Aktualizacja oficjalnego komunikatu'
+
+
+def record_maintenance_baseline(state, gid, title, body):
+    """Seed old announcements without generating historical edit notifications."""
+    entries = state.setdefault('maintenance_versions', {})
+    fingerprint = maintenance_fingerprint(title, body)
+    if gid not in entries:
+        entries[gid] = fingerprint
+        return 'baseline'
+    if entries[gid] == fingerprint:
+        return 'unchanged'
+    return 'changed'
+
+
 def run(args):
     state = load_state()
     api_key = os.environ.get('GOOGLE_TRANSLATE_API_KEY', '')
@@ -216,13 +248,35 @@ def run(args):
         LOG.info('Initial sync: marked %d announcements as seen; nothing posted.', len(state['seen']))
         return
     sent = 0
+    revisions = 0
     for a in sorted(articles, key=lambda x: x.get('date', 0)):
         gid = str(a.get('gid', ''))
-        if not gid or gid in seen:
+        if not gid:
             continue
         title = strip_markup(a.get('title', ''))
         body = strip_markup(a.get('contents', ''))
         category = categorize(title, body)
+        eligible_maintenance = category == 'maintenance' and relevant(title, body)
+        revision_state = None
+        if eligible_maintenance:
+            revision_state = record_maintenance_baseline(state, gid, title, body)
+
+        if gid in seen:
+            if revision_state == 'changed':
+                status = maintenance_status(title, body)
+                translated_title = translate(title[:200], api_key, state) if not args.dry_run else title
+                translated_body = translate(body[:3000], api_key, state) if not args.dry_run else body[:1000]
+                post_discord(webhook, '[AKTUALIZACJA] ' + translated_title,
+                             status + '\n\n' + translated_body,
+                             a.get('url', ''), 'maintenance', int(a.get('date', 0)), args.dry_run)
+                revisions += 1
+                if not args.dry_run:
+                    state['maintenance_versions'][gid] = maintenance_fingerprint(title, body)
+                    save_state(state)
+            elif revision_state == 'baseline' and not args.dry_run:
+                save_state(state)
+            continue
+
         if category and relevant(title, body):
             translated_title = translate(title[:200], api_key, state) if not args.dry_run else '[DRY RUN] ' + title
             translated_body = translate(body[:3000], api_key, state) if not args.dry_run else body[:1000]
@@ -230,10 +284,23 @@ def run(args):
                          a.get('url', ''), category, int(a.get('date', 0)), args.dry_run)
             sent += 1
         if not args.dry_run:
+            if eligible_maintenance:
+                state['maintenance_versions'][gid] = maintenance_fingerprint(title, body)
             seen.add(gid)
             seen_list.append(gid)
             state['seen'] = seen_list[-500:]
             save_state(state)
+    if not args.dry_run:
+        # Only retain baselines for articles still in the fetched Steam window.
+        current_ids = {str(a.get('gid', '')) for a in articles}
+        versions = state.get('maintenance_versions', {})
+        stale = set(versions) - current_ids
+        if stale:
+            for gid in stale:
+                del versions[gid]
+            save_state(state)
+    LOG.info('Maintenance revision notifications: %d', revisions)
+
     LOG.info('Sent %d notifications; scanned %d announcements.', sent, len(articles))
 
 
@@ -248,4 +315,3 @@ if __name__ == '__main__':
     except (urllib.error.URLError, RuntimeError, KeyError, ValueError) as exc:
         LOG.error('Notifier failed: %s', exc)
         sys.exit(1)
-
