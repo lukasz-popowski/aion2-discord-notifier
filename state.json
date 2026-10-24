@@ -1,9 +1,17 @@
 {
   "chars_by_month": {
-    "2026-10": 12330
+    "2026-10": 13096
   },
   "initialized": true,
-  "maintenance_schedules": {},
+  "maintenance_schedules": {
+    "1847286114038363": {
+      "reminder_sent": false,
+      "start": 1792888200,
+      "start_sent": false,
+      "title": "Temporary Maintenance (EU) | Oct 24 PDT / Oct 25 CEST",
+      "url": "https://steamstore-a.akamaihd.net/news/externalpost/steam_community_announcements/1847286114038363"
+    }
+  },
   "maintenance_versions": {
     "1845383656379184": "5904030c17afa4611c5c350589ceaae6fb75a9f17d56ec5764de399da5c45029",
     "1845383656380131": "f57ea3c786766de9d6889eaf980c03bfa37bb7878aebb239dd5515c6a2a0a7a8",
@@ -12,7 +20,8 @@
     "1846018067929558": "4d3f4d159ab51b6731e7dfd9ea779c59d36c39d52216bc47141149a178feeadc",
     "1846018067942591": "22a3428fcdc9c824a1a72e53676f2f7cee7d751efb7c9d056fcb422fd1cb8acc",
     "1846018067943682": "e1af41a12b0837a12ab7478552089eadecb94ad987f624fbb17ba7b969d0e3ba",
-    "1846651706693724": "b5a6fe4ff3a09dc2115883f4bd8ef25ead64fbf53c84ee2acb469edf5c48f43e"
+    "1846651706693724": "b5a6fe4ff3a09dc2115883f4bd8ef25ead64fbf53c84ee2acb469edf5c48f43e",
+    "1847286114038363": "511215ca24fbf4a83c4a594c2d5bc2de4b6aebbfa4adddd9ae9faaf6ee1776ef"
   },
   "seen": [
     "1846018067929176",
@@ -93,6 +102,8 @@
     "1847286114027201",
     "1847286114027715",
     "1847286114027716",
-    "1847286114037691"
+    "1847286114037691",
+    "1847286114038363",
+    "1847286114038375"
   ]
 }
