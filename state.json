@@ -5,7 +5,7 @@
   "initialized": true,
   "maintenance_schedules": {
     "1847286114038363": {
-      "reminder_sent": false,
+      "reminder_sent": true,
       "start": 1792888200,
       "start_sent": false,
       "title": "Temporary Maintenance (EU) | Oct 24 PDT / Oct 25 CEST",
