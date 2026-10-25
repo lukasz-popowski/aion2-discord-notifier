@@ -1,6 +1,6 @@
 {
   "chars_by_month": {
-    "2026-10": 13096
+    "2026-10": 14405
   },
   "initialized": true,
   "maintenance_schedules": {
@@ -21,7 +21,7 @@
     "1846018067942591": "22a3428fcdc9c824a1a72e53676f2f7cee7d751efb7c9d056fcb422fd1cb8acc",
     "1846018067943682": "e1af41a12b0837a12ab7478552089eadecb94ad987f624fbb17ba7b969d0e3ba",
     "1846651706693724": "b5a6fe4ff3a09dc2115883f4bd8ef25ead64fbf53c84ee2acb469edf5c48f43e",
-    "1847286114038363": "511215ca24fbf4a83c4a594c2d5bc2de4b6aebbfa4adddd9ae9faaf6ee1776ef"
+    "1847286114038363": "91749b258fc9fb9204b5d44eb2ccbabdc0485f6723f84812e7d7684577a6ac1b"
   },
   "seen": [
     "1846018067929176",
