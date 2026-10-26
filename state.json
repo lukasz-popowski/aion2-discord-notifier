@@ -3,15 +3,7 @@
     "2026-10": 14405
   },
   "initialized": true,
-  "maintenance_schedules": {
-    "1847286114038363": {
-      "reminder_sent": true,
-      "start": 1792888200,
-      "start_sent": true,
-      "title": "Temporary Maintenance (EU) | Oct 24 PDT / Oct 25 CEST",
-      "url": "https://steamstore-a.akamaihd.net/news/externalpost/steam_community_announcements/1847286114038363"
-    }
-  },
+  "maintenance_schedules": {},
   "maintenance_versions": {
     "1845383656379184": "5904030c17afa4611c5c350589ceaae6fb75a9f17d56ec5764de399da5c45029",
     "1845383656380131": "f57ea3c786766de9d6889eaf980c03bfa37bb7878aebb239dd5515c6a2a0a7a8",
