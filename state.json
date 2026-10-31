@@ -1,9 +1,24 @@
 {
   "chars_by_month": {
-    "2026-10": 19697
+    "2026-10": 21196
   },
   "initialized": true,
-  "maintenance_schedules": {},
+  "maintenance_schedules": {
+    "1847920302240918": {
+      "reminder_sent": false,
+      "start": 1793511000,
+      "start_sent": false,
+      "title": "Temporary Maintenance (NAE) | Oct 31 (PDT) / Nov 1 (CET)",
+      "url": "https://steamstore-a.akamaihd.net/news/externalpost/steam_community_announcements/1847920302240918"
+    },
+    "1847920302240919": {
+      "reminder_sent": false,
+      "start": 1793521800,
+      "start_sent": false,
+      "title": "Temporary Maintenance (NAW) | Nov 1",
+      "url": "https://steamstore-a.akamaihd.net/news/externalpost/steam_community_announcements/1847920302240919"
+    }
+  },
   "maintenance_versions": {
     "1845383656379184": "5904030c17afa4611c5c350589ceaae6fb75a9f17d56ec5764de399da5c45029",
     "1845383656380131": "f57ea3c786766de9d6889eaf980c03bfa37bb7878aebb239dd5515c6a2a0a7a8",
@@ -14,7 +29,9 @@
     "1846018067943682": "e1af41a12b0837a12ab7478552089eadecb94ad987f624fbb17ba7b969d0e3ba",
     "1846651706693724": "b5a6fe4ff3a09dc2115883f4bd8ef25ead64fbf53c84ee2acb469edf5c48f43e",
     "1847286114038363": "91749b258fc9fb9204b5d44eb2ccbabdc0485f6723f84812e7d7684577a6ac1b",
-    "1847286114048471": "ba48e65c0054b2fc689b7546a9b149629933a6cc323101d3da3f210abbfbaf95"
+    "1847286114048471": "ba48e65c0054b2fc689b7546a9b149629933a6cc323101d3da3f210abbfbaf95",
+    "1847920302240918": "48dc85f8bd0e1b34435927b5cacb8db5193a95df442fc510193b1cf46874f14a",
+    "1847920302240919": "be7c3cf0137ac55f4a7826272a7753ac94bb8611c3ae819302ffdfd954d0d1cd"
   },
   "seen": [
     "1846018067929176",
@@ -107,6 +124,8 @@
     "1847920302230023",
     "1847920302231105",
     "1847920302233325",
-    "1847920302233335"
+    "1847920302233335",
+    "1847920302240918",
+    "1847920302240919"
   ]
 }
