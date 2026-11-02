@@ -5,13 +5,6 @@
   },
   "initialized": true,
   "maintenance_schedules": {
-    "1847920302240918": {
-      "reminder_sent": false,
-      "start": 1793511000,
-      "start_sent": false,
-      "title": "Temporary Maintenance (NAE) | Oct 31 (PDT) / Nov 1 (CET)",
-      "url": "https://steamstore-a.akamaihd.net/news/externalpost/steam_community_announcements/1847920302240918"
-    },
     "1847920302240919": {
       "reminder_sent": false,
       "start": 1793521800,
