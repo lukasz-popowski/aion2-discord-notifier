@@ -4,15 +4,7 @@
     "2026-11": 1719
   },
   "initialized": true,
-  "maintenance_schedules": {
-    "1847920302240919": {
-      "reminder_sent": false,
-      "start": 1793521800,
-      "start_sent": false,
-      "title": "Temporary Maintenance (NAW) | Nov 1",
-      "url": "https://steamstore-a.akamaihd.net/news/externalpost/steam_community_announcements/1847920302240919"
-    }
-  },
+  "maintenance_schedules": {},
   "maintenance_versions": {
     "1845383656379184": "5904030c17afa4611c5c350589ceaae6fb75a9f17d56ec5764de399da5c45029",
     "1845383656380131": "f57ea3c786766de9d6889eaf980c03bfa37bb7878aebb239dd5515c6a2a0a7a8",
